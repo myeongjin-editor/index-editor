@@ -953,6 +953,9 @@
 <header>
   <h1>반자동 색인 편집기 1.1</h1>
   <div class="header-sep"></div>
+  <button class="file-btn" onclick="showOnboard()" title="도움말">
+    <span>❓</span> 도움말
+  </button>
   <label class="file-btn">
     <span>📄</span> PDF 열기
     <input type="file" id="pdfInput" accept=".pdf">
@@ -1053,8 +1056,59 @@
 
 <div id="toast"></div>
 
-<!-- 온보딩 모달 -->
-<div class="onboard-overlay" id="onboardOverlay">
+<!-- 온보딩 템플릿 (재사용용) -->
+<template id="onboardTemplate">
+  <div class="onboard-box">
+    <h2>반자동 색인 편집기 1.1</h2>
+    <div class="sub">made by 원더박스 곽편 · balhwa24@gmail.com — 사용법 안내</div>
+    <div class="onboard-steps">
+      <div class="onboard-step">
+        <div class="onboard-num">1</div>
+        <div class="onboard-step-text">
+          상단 <b>PDF 열기</b>로 원고 파일을,
+          <b>색인 파일 열기</b>로 색인 텍스트 파일을 불러옵니다.
+        </div>
+      </div>
+      <div class="onboard-step">
+        <div class="onboard-num">2</div>
+        <div class="onboard-step-text">
+          검색창(<span class="key">Ctrl/Cmd+F</span>)에 키워드를 입력하고
+          <span class="key">Enter</span>를 누르면 PDF에서 해당 키워드가 있는 페이지를 찾습니다.
+        </div>
+      </div>
+      <div class="onboard-step">
+        <div class="onboard-num">3</div>
+        <div class="onboard-step-text">
+          오른쪽 <b>색인어를 클릭</b>하면 현재 PDF 페이지 번호가 해당 색인어에 자동 삽입되고,
+          다음 검색 결과 페이지로 이동합니다.
+        </div>
+      </div>
+      <div class="onboard-step">
+        <div class="onboard-num">4</div>
+        <div class="onboard-step-text">
+          <span class="key">←</span><span class="key">→</span> 앞/뒤 페이지 &nbsp;
+          <span class="key">↑</span><span class="key">↓</span> 검색 결과 이동 &nbsp;
+          색인어 <b>꾹 누르기</b> → PDF 검색 &nbsp;
+          <b>우클릭</b> → 추가 메뉴
+        </div>
+      </div>
+      <div class="onboard-step">
+        <div class="onboard-num">5</div>
+        <div class="onboard-step-text">
+          작업 완료 후 <b>💾 내보내기</b>로 색인 파일을 저장합니다.
+          <span class="key">Cmd+Z</span>로 모든 작업을 되돌릴 수 있습니다.
+        </div>
+      </div>
+    </div>
+    <label class="onboard-check">
+      <input type="checkbox" id="onboardDontShow"> 다음부터 보지 않기
+    </label>
+    <button class="onboard-close" onclick="closeOnboard()">시작하기</button>
+  </div>
+</template>
+
+<!-- 온보딩 모달 (초기 실행용) -->
+<div class="onboard-overlay" id="onboardOverlay" style="display:flex">
   <div class="onboard-box">
     <h2>반자동 색인 편집기 1.1</h2>
     <div class="sub">made by 원더박스 곽편 — 사용법 안내</div>
@@ -1106,7 +1160,7 @@
 
 <!-- 상태바 안내 -->
 <div class="status-guide" id="statusGuide"></div>
-<div class="credit">made by 원더박스 곽편</div>
+<div class="credit">made by 원더박스 곽편 · balhwa24@gmail.com</div>
 
 <!-- 방향키 안내 HUD -->
 <div class="key-hint" id="keyHint">
@@ -2366,12 +2420,28 @@ document.addEventListener('click', closeCtxMenu);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCtxMenu(); });
 
 // ── ONBOARDING ────────────────────────────────────────
+function showOnboard() {
+  // 기존 모달이 없으면 새로 생성
+  if (!document.getElementById('onboardOverlay')) {
+    const div = document.createElement('div');
+    div.id = 'onboardOverlay';
+    div.className = 'onboard-overlay';
+    div.innerHTML = document.getElementById('onboardTemplate').innerHTML;
+    document.body.appendChild(div);
+  }
+  const overlay = document.getElementById('onboardOverlay');
+  overlay.style.opacity = '';
+  overlay.style.transition = '';
+  overlay.style.display = 'flex';
+}
+
 function closeOnboard() {
   const overlay = document.getElementById('onboardOverlay');
   overlay.style.opacity = '0';
   overlay.style.transition = 'opacity 0.25s';
-  setTimeout(() => overlay.remove(), 280);
-  if (document.getElementById('onboardDontShow').checked) {
+  setTimeout(() => { overlay.style.display = 'none'; overlay.style.opacity = ''; }, 280);
+  if (document.getElementById('onboardDontShow') &&
+      document.getElementById('onboardDontShow').checked) {
     try { localStorage.setItem('onboard_done', '1'); } catch(e) {}
   }
 }
@@ -2379,7 +2449,7 @@ function closeOnboard() {
 (function() {
   let skip = false;
   try { skip = localStorage.getItem('onboard_done') === '1'; } catch(e) {}
-  if (skip) document.getElementById('onboardOverlay').remove();
+  if (skip) document.getElementById('onboardOverlay').style.display = 'none';
 })();
 
 // ── STATUS GUIDE ───────────────────────────────────────
