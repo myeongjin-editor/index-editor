@@ -951,7 +951,7 @@
 <body>
 
 <header>
-  <h1>반자동 색인 편집기 1.11</h1>
+  <h1>반자동 색인 편집기 1.12</h1>
   <div class="header-sep"></div>
   <button class="file-btn" onclick="showOnboard()" title="도움말">
     <span>❓</span> 도움말
@@ -1059,7 +1059,7 @@
 <!-- 온보딩 템플릿 (재사용용) -->
 <template id="onboardTemplate">
   <div class="onboard-box">
-    <h2>반자동 색인 편집기 1.11</h2>
+    <h2>반자동 색인 편집기 1.12</h2>
     <div class="sub">만든이: 원더박스 곽편 (balhwa24@gmail.com) — 사용법 안내</div>
     <div class="onboard-steps">
       <div class="onboard-step">
@@ -1110,8 +1110,8 @@
 <!-- 온보딩 모달 (초기 실행용) -->
 <div class="onboard-overlay" id="onboardOverlay" style="display:flex">
   <div class="onboard-box">
-    <h2>반자동 색인 편집기 1.11 사용법 안내</h2>
-    <div class="sub">만든이: 원더박스 곽편 (balhwa24@gmail.com)</div>
+    <h2>반자동 색인 편집기 1.12 사용법 안내</h2>
+    <div class="sub">만든이: 원더박스 곽편 (balhwa24@gmail.com) · 마지막 수정일: 2026.06.16</div>
     <div class="onboard-steps">
       <div class="onboard-step">
         <div class="onboard-num">1</div>
@@ -1524,75 +1524,79 @@ async function renderPage(num) {
   hitR.addEventListener('click', (e) => { e.stopPropagation(); changePage(1); });
   wrap.appendChild(hitR);
 
-  // ── 4. SVG 하이라이트 ──
+  // ── 4. 검색어 하이라이트 (형광펜) ──
+  let firstHlY = null;
   if (currentSearchKeyword) {
-    renderHighlightSVG(wrap, textContent.items, viewport, currentSearchKeyword);
+    firstHlY = renderHighlightSVG(wrap, textContent.items, viewport, currentSearchKeyword);
   }
 
   container.appendChild(wrap);
-  container.scrollTop = 0;
+  if (firstHlY !== null) {
+    container.scrollTop = Math.max(0, firstHlY - 80);
+  } else {
+    container.scrollTop = 0;
+  }
   updatePassFloat();
 }
 
-// 왼쪽 여백에 가로 막대 표식
+// 검색어가 있는 글자 위에 정확히 형광펜 하이라이트를 그린다.
 function renderHighlightSVG(wrap, items, viewport, keyword) {
   const matches = findInItems(items, keyword);
-  if (!matches.length) return;
+  console.log('[HL] matches:', matches.length, 'keyword:', keyword, 'scale:', scale, 'vp.w:', viewport.width, 'vp.h:', viewport.height);
+  if (!matches.length) return null;
 
   const NS = 'http://www.w3.org/2000/svg';
-  const W = viewport.width;
-  const H = viewport.height;
-
-  // SVG를 페이지 왼쪽 바깥 여백에 위치 (페이지 너비 + 30px 오버레이)
-  const MARK_W = 24;  // 막대 길이 px (약 20~25mm 시각적 기준)
-  const MARK_T = 4;   // 막대 두께 px
-
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('class', 'hl-svg');
-  svg.setAttribute('width', W);
-  svg.setAttribute('height', H);
-  svg.style.position = 'absolute';
-  svg.style.top = '0';
-  svg.style.left = '0';
-  svg.style.pointerEvents = 'none';
-  svg.style.zIndex = '3';
+  svg.setAttribute('width', viewport.width);
+  svg.setAttribute('height', viewport.height);
+  // position:absolute 명시적으로 지정
+  svg.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:10;';
 
-  const drawnY = new Set(); // 같은 줄 중복 방지
+  let firstY = null;
 
-  for (const match of matches) {
-    const item = items[match.startTi];
-    if (!item || !item.str) continue;
+  for (const m of matches) {
+    for (let ti = m.startTi; ti <= m.endTi; ti++) {
+      const item = items[ti];
+      if (!item || !item.str || !item.str.length) continue;
 
-    // y 좌표만 사용 — tx[5]가 baseline
-    const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-    const fontH = Math.abs(tx[3]);
-    const cy = tx[5] - fontH * 0.5; // 텍스트 중앙 y
+      const len  = item.str.length;
+      const from = (ti === m.startTi) ? m.startCi : 0;
+      const to   = (ti === m.endTi)   ? m.endCi   : len;
+      if (to <= from) continue;
 
-    const yKey = Math.round(cy / 4) * 4; // 4px 단위로 묶어 중복 방지
-    if (drawnY.has(yKey)) continue;
-    drawnY.add(yKey);
+      const tx    = pdfjsLib.Util.transform(viewport.transform, item.transform);
+      const fontH = Math.hypot(tx[1], tx[3]) || Math.abs(tx[3]) || 10;
+      // item.width는 PDF 사용자 공간 단위 → scale 곱해서 픽셀로 변환
+      const itemW = (item.width || 0) * scale;
 
-    // 왼쪽 끝에 가로 막대
-    const rect = document.createElementNS(NS, 'rect');
-    rect.setAttribute('x', 0);
-    rect.setAttribute('y', (cy - MARK_T / 2).toFixed(1));
-    rect.setAttribute('width', MARK_W);
-    rect.setAttribute('height', MARK_T);
-    rect.setAttribute('rx', '2');
-    rect.setAttribute('fill', 'rgba(255, 160, 0, 0.9)');
-    svg.appendChild(rect);
+      const x0 = tx[4] + itemW * (from / len);
+      const x1 = tx[4] + itemW * (to   / len);
+      const w  = Math.max(2, x1 - x0);
+      const y  = tx[5] - fontH * 0.88;
+      const h  = fontH * 1.06;
 
-    // 삼각형 화살표 (막대 오른쪽 끝)
-    const arrow = document.createElementNS(NS, 'polygon');
-    const ax = MARK_W, ay = cy;
-    arrow.setAttribute('points',
-      `${ax},${(ay - MARK_T * 1.5).toFixed(1)} ${ax + 8},${ay.toFixed(1)} ${ax},${(ay + MARK_T * 1.5).toFixed(1)}`
-    );
-    arrow.setAttribute('fill', 'rgba(255, 140, 0, 0.95)');
-    svg.appendChild(arrow);
+      console.log('[HL] rect:', {ti, from, to, x0: x0.toFixed(1), y: y.toFixed(1), w: w.toFixed(1), h: h.toFixed(1), itemW, fontH, tx4: tx[4].toFixed(1), tx5: tx[5].toFixed(1)});
+
+      const rect = document.createElementNS(NS, 'rect');
+      rect.setAttribute('x', x0.toFixed(1));
+      rect.setAttribute('y', y.toFixed(1));
+      rect.setAttribute('width', w.toFixed(1));
+      rect.setAttribute('height', h.toFixed(1));
+      rect.setAttribute('rx', '2');
+      rect.setAttribute('fill', 'rgba(255, 215, 0, 0.45)');
+      rect.setAttribute('stroke', 'rgba(230, 160, 0, 0.6)');
+      rect.setAttribute('stroke-width', '0.75');
+      svg.appendChild(rect);
+
+      if (firstY === null) firstY = y;
+    }
   }
 
+  console.log('[HL] firstY:', firstY, 'rects:', svg.childNodes.length);
+  if (firstY === null) return null;
   wrap.appendChild(svg);
+  return firstY;
 }
 
 function changePage(delta) {
